@@ -90,7 +90,8 @@ const loginUser = async (req, res) => {
       );
       res.cookie("accessToken", accessToken, {
         HttpOnly: true,
-        secure: true,
+        //TODO: will turn it to true once ssl is configured
+        secure: false,
         maxAge: 24 * 60 * 60 * 1000,
         sameSite: "none",
       });
