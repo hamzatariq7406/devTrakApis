@@ -6,54 +6,26 @@ const mongoose = require("mongoose");
 //modals
 const Users = require("../models/userModel");
 
-//get user info
-const all = async (req, res) => {
-  try {
-    const users = await Users.find();
-    res.status(200).json(users);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-//get admin info only
-const allAdmins = async (req, res) => {
-  try {
-    const users = await Users.find({ role: "admin" });
-    res.status(200).json(users);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-//get users info only
-const allUsers = async (req, res) => {
-  try {
-    const users = await Users.find({ role: "user" });
-    res.status(200).json(users);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
 //user registration
 const userRegisteration = async (req, res) => {
   try {
-    const { name, phoneNumber, password, role, promoCode } = req.body;
+    const { firstName, lastName, email, phone, password } = req.body;
 
-    const isUserExist = await Users.findOne({ phoneNumber });
+    const isUserExist = await Users.findOne({ email });
     if (isUserExist) {
       return res.status(400).json({ message: "User already exist" });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const useData = await Users.create({
-      name,
-      phoneNumber,
-      password: hashedPassword,
-      role,
-      promoCode
+    const userData = await Users.create({
+      firstName,
+      lastName,
+      email,
+      phone,
+      password: hashedPassword
     });
 
-    if (useData) {
+    if (userData) {
       res.status(201).json({ message: "User Regsitered successfully" });
     } else {
       res.status(400);
@@ -66,16 +38,16 @@ const userRegisteration = async (req, res) => {
 
 const loginUser = async (req, res) => {
   try {
-    const { phoneNumber, password } = req.body;
-    if (!phoneNumber || !password) {
+    const { email, password } = req.body;
+    if (!email || !password) {
       res.status(400);
       throw new Error("All fields are required");
     }
 
-    const user = await Users.find({ phoneNumber });
+    const user = await Users.find({ email });
     if (user.length === 0) {
       res.status(400);
-      throw new Error("Invalid phoneNumber or password");
+      throw new Error("Invalid email or password");
     }
 
     if (user && (await bcrypt.compare(password, user[0].password))) {
@@ -98,7 +70,7 @@ const loginUser = async (req, res) => {
       res.status(200).json({ message: "login successful" });
     } else {
       res.status(400);
-      throw new Error("phoneNumber or password is not valid");
+      throw new Error("email or password is not valid");
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -142,9 +114,6 @@ const logoutUser = (req, res) => {
 };
 
 module.exports = {
-  all,
-  allAdmins,
-  allUsers,
   userRegisteration,
   loginUser,
   currentUser,
