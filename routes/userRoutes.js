@@ -1,9 +1,6 @@
 const express = require("express");
 const userRouter = express.Router();
 const {
-  all,
-  allAdmins,
-  allUsers,
   loginUser,
   userRegisteration,
   currentUser,
@@ -13,9 +10,6 @@ const {
 
 const validateToken = require("../middleware/validateTokenHandler");
 
-userRouter.all("/all", validateToken, all);
-userRouter.post("/allAdmins", validateToken, allAdmins);
-userRouter.post("/allUsers", validateToken, allUsers);
 userRouter.post("/login", loginUser);
 userRouter.post("/register", userRegisteration);
 userRouter.get("/currentUser", validateToken, currentUser);
