@@ -1,23 +1,25 @@
 //User info Controllers
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const mongoose = require("mongoose");
+import pkg from "bcrypt";
+const {bcrypt}=pkg;
+import jwt from "jsonwebtoken";
+import { Types } from "mongoose";
 
 //modals
-const Users = require("../models/userModel");
+import  User  from "../models/userModel.js";
 
 //user registration
 const userRegisteration = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
 
-    const isUserExist = await Users.findOne({ email });
+    const isUserExist = await findOne({ email });
     if (isUserExist) {
+      
       return res.status(400).json({ message: "User already exist" });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const userData = await Users.create({
+    const userData = await create({
       firstName,
       lastName,
       email,
@@ -44,14 +46,14 @@ const loginUser = async (req, res) => {
       throw new Error("All fields are required");
     }
 
-    const user = await Users.find({ email });
+    const user = await find({ email });
     if (user.length === 0) {
       res.status(400);
       throw new Error("Invalid email or password");
     }
 
     if (user && (await bcrypt.compare(password, user[0].password))) {
-      const accessToken = jwt.sign(
+      const accessToken = sign(
         {
           user: {
             _userInfo: user[0]._id,
@@ -81,9 +83,9 @@ const loginUser = async (req, res) => {
 const deleteUser = async (req, res) => {
   try {
     const id = req.query.id;
-    const o_id = new mongoose.Types.ObjectId(id);
+    const o_id = new Types.ObjectId(id);
 
-    await Users.deleteOne({ _id: o_id });
+    await deleteOne({ _id: o_id });
 
     return res.status(200).json({ message: "User Deleted" });
   } catch (error) {
@@ -94,7 +96,7 @@ const deleteUser = async (req, res) => {
 //current user
 const currentUser = async (req, res) => {
   try {
-    const user = await Users.findOne({ _id: req.user._userInfo });
+    const user = await findOne({ _id: req.user._userInfo });
     const { password, ...data } = await user.toJSON();
 
     res.status(200).json({ data, message: "Authorized user Information" });
@@ -113,7 +115,7 @@ const logoutUser = (req, res) => {
   }
 };
 
-module.exports = {
+export {
   userRegisteration,
   loginUser,
   currentUser,

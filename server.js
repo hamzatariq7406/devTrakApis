@@ -1,13 +1,15 @@
-const express = require("express");
-const errorHandler = require("./middleware/errorHandler");
-const connectDb = require("./config/dbConnection");
-const cookieParser = require("cookie-parser");
-const cors = require("cors");
+import dotenv from "dotenv";
+dotenv.config()
+import express, { json } from "express";
+import errorHandler from "./middleware/errorHandler.js";
+import connectDb from "./config/dbConnection.js";
+import cookieParser from "cookie-parser";
+import cors from "cors";
 
-require("dotenv").config();
+
 
 //Routes
-const userRouter = require("./routes/userRoutes");
+import userRouter from "./routes/userRoutes.js";
 
 const PORT = process.env.PORT || 9001;
 
@@ -20,7 +22,7 @@ const app = express();
 app.use(cors());
 
 app.options("/api", cors());
-app.use(express.json());
+app.use(json());
 app.use(cookieParser());
 
 app.use("/api", userRouter);

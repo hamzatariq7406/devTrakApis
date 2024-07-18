@@ -1,14 +1,8 @@
-const express = require("express");
-const userRouter = express.Router();
-const {
-  loginUser,
-  userRegisteration,
-  currentUser,
-  logoutUser,
-  deleteUser,
-} = require("../controllers/userController");
+import { Router } from "express";
+const userRouter = Router();
+import { loginUser, userRegisteration, currentUser, logoutUser, deleteUser } from "../controllers/userController.js";
 
-const validateToken = require("../middleware/validateTokenHandler");
+import validateToken from "../middleware/validateTokenHandler.js";
 
 userRouter.post("/login", loginUser);
 userRouter.post("/register", userRegisteration);
@@ -16,4 +10,4 @@ userRouter.get("/currentUser", validateToken, currentUser);
 userRouter.post("/logout", logoutUser);
 userRouter.post("/delete", validateToken, deleteUser);
 
-module.exports = userRouter;
+export default userRouter;
