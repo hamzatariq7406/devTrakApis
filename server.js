@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config()
-import express, { json } from "express";
+import express from "express";
 import errorHandler from "./middleware/errorHandler.js";
 import connectDb from "./config/dbConnection.js";
 import cookieParser from "cookie-parser";
@@ -22,7 +22,7 @@ const app = express();
 app.use(cors());
 
 app.options("/api", cors());
-app.use(json());
+app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api", userRouter);

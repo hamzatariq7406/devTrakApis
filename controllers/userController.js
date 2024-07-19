@@ -1,6 +1,6 @@
 //User info Controllers
-import pkg from "bcrypt";
-const {bcrypt}=pkg;
+import bcrypt from "bcrypt";
+
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
 
@@ -9,18 +9,26 @@ import  User  from "../models/userModel.js";
 import { ApiError } from "../ApiError.js";
 
 //user registration
-const userRegisteration = async (req, res) => {
+const userRegisteration = async (req, res,next) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
+    
 
-    const isUserExist = await findOne({ email });
+    const isUserExist = await User.findOne({ email:email });
+
+    console.log('user ', isUserExist)
+    
     if (isUserExist) {
       
       return res.status(400).json({ message: "User already exist" });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const salt = await bcrypt.genSalt(10);
+    console.log('salt ', salt)
+    const hashedPassword = await bcrypt.hash(password,salt);
+    console.log('i am here')
+    
 
-    const userData = await create({
+    const userData = await User.create({
       firstName,
       lastName,
       email,
@@ -35,11 +43,12 @@ const userRegisteration = async (req, res) => {
       throw new Error("User data is not valid");
     }
   } catch (error) {
+    console.log(error)
      return next(new ApiError(500,"some thing wants wrong",error))
   }
 };
 
-const loginUser = async (req, res) => {
+const loginUser = async (req, res,next) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -81,7 +90,7 @@ const loginUser = async (req, res) => {
 };
 
 //delete User
-const deleteUser = async (req, res) => {
+const deleteUser = async (req, res,next) => {
   try {
     const id = req.query.id;
     const o_id = new Types.ObjectId(id);
@@ -95,7 +104,7 @@ const deleteUser = async (req, res) => {
 };
 
 //current user
-const currentUser = async (req, res) => {
+const currentUser = async (req, res,next) => {
   try {
     const user = await findOne({ _id: req.user._userInfo });
     const { password, ...data } = await user.toJSON();
@@ -107,7 +116,7 @@ const currentUser = async (req, res) => {
 };
 
 //logout user
-const logoutUser = (req, res) => {
+const logoutUser = (req, res,next) => {
   try {
     res.cookie("accessToken", "", { maxAge: 0 });
     res.status(200).json({ message: "User logged out" });
