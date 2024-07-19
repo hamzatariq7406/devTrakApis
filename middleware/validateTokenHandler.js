@@ -7,14 +7,14 @@ const validateToken = asyncHandler(async (req, res, next) => {
   if (req.cookies && req.cookies.accessToken) {
     token = req.cookies.accessToken;
   }
-
+console.log('token ', token)
   if (!token) {
     res.status(400);
     throw new Error("User is not authorized or token is missing");
   }
 
   try {
-    const decoded = verify(token, process.env.JWT_KEY);
+    const decoded =jwt.verify(token, process.env.JWT_KEY);
     req.user = decoded.user;
     next();
   } catch (err) {
