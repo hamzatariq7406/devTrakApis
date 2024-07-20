@@ -20,9 +20,8 @@ const userRegisteration = async (req, res, next) => {
       return res.status(400).json({ message: "User already exist" });
     }
     const salt = await bcrypt.genSalt(10);
-
-    const hashedPassword = await bcrypt.hash(password, salt);
-
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const confirmationToken = generateRandomCode();
 
 
     const userData = await User.create({
@@ -30,11 +29,40 @@ const userRegisteration = async (req, res, next) => {
       lastName,
       email,
       phone,
-      password: hashedPassword
+      password: hashedPassword,
+      token: confirmationToken
     });
 
     if (userData) {
-      res.status(201).json({ message: "User Regsitered successfully" });
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.SIGNUP_EMAIL,
+          pass: process.env.SIGNUP_EMAIL_PASS,
+        },
+      });
+
+      const mailOptions = {
+        from: process.env.SIGNUP_EMAIL,
+        to: email,
+        subject: 'DevTrak Account Creation Request',
+        html: `
+            <p>Hello,</p>
+            <br />
+            <p>Thank you for signing up with us!</p>
+            <p>To complete your registration, please use the following confirmation code:</p>
+            <br />
+            <h2 style="background-color: #f0f0f0; padding: 10px; text-align: center;">${confirmationToken}</h2>
+            <br />
+            <p>If you didn't sign up for our service, please ignore this email.</p>
+            <br />
+            <p>Best regards,<br>DevTrak Team</p>
+        `
+      };
+
+      transporter.sendMail(mailOptions);
+
+      res.status(201).json({ message: "Email verification code sent successfully." });
     } else {
       res.status(400);
       throw new Error("User data is not valid");
@@ -45,7 +73,31 @@ const userRegisteration = async (req, res, next) => {
   }
 };
 
-const loginUser = async (req, res, next) => {
+const validateConfirmationToken = async (req, res) => {
+  try {
+    const { email, token } = req.body;
+
+    const user = await Users.findOne({ email });
+
+    if (!user) {
+      res.status(400);
+      throw new Error("No user exists with this email");
+    }
+
+    if (user.token !== token) {
+      res.status(400);
+      throw new Error("Token is not valid");
+    }
+
+    await Users.updateOne({ email }, { $set: { token: null } });
+
+    res.status(200).json({ message: "Email verification successful" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
+
+const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
     console.log("i am here")
@@ -61,7 +113,12 @@ const loginUser = async (req, res, next) => {
     }
 
     if (user && (await bcrypt.compare(password, user[0].password))) {
-      
+
+      if (user[0] && user[0]?.token) {
+        res.status(401);
+        throw new Error("Email verification is pending");
+      }
+
       const accessToken = jwt.sign(
         {
           user: {
@@ -81,7 +138,7 @@ const loginUser = async (req, res, next) => {
       res.status(200).json({ message: "login successful",accessToken });
     } else {
       res.status(400);
-      throw new Error("email or password is not valid");
+      throw new Error("Email or password is not valid");
     }
   } catch (error) {
     console.log(error)
@@ -130,5 +187,6 @@ export {
   loginUser,
   currentUser,
   logoutUser,
-  deleteUser
+  deleteUser,
+  validateConfirmationToken
 };
