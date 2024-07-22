@@ -124,11 +124,25 @@ const logoutUser = (req, res, next) => {
     return next(new ApiError(500, "some thing wants wrong", error))
   }
 };
+const updateUser = async (req, res, next) => {
+  try {
+    const user = await User.updateOne(
+      { _id: req.params.id },
+      { $set: req.body }
+    );
+    
+    return res.status(200).send(user)
+  } catch (error) {
+    console.log(error);
+    return next(new ApiError(500, "Something went wrong", error));
+  }
+};
 
 export {
   userRegisteration,
   loginUser,
   currentUser,
   logoutUser,
-  deleteUser
+  deleteUser,
+  updateUser
 };
