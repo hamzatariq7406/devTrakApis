@@ -1,12 +1,10 @@
 import dotenv from "dotenv";
 dotenv.config()
 import express from "express";
-import errorHandler from "./middleware/errorHandler.js";
+import * as errorHandler from "./middleware/errorHandler.js";
 import connectDb from "./config/dbConnection.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-
-
 
 //Routes
 import userRouter from "./routes/userRoutes.js";
@@ -33,7 +31,8 @@ app.get("/", (req, res) => {
 });
 
 //errorHandler
-app.use(errorHandler);
+app.use(errorHandler.notFoundErrorHandler);
+app.use(errorHandler.errorHandler);
 
 //port listening string
 app.listen(PORT, () => {
