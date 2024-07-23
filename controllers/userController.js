@@ -175,11 +175,63 @@ const currentUser = async (req, res, next) => {
   ApiResponse.result(res, { user: data }, httpStatusCodes.OK);
 };
 
+const updateUser = async (req, res, next) => {
+  const { firstName, lastName, phone } = req.body;
+
+    const user = await Users.updateOne(
+      { _id: req.params.id },
+      { $set: {firstName, lastName, phone} }
+    );
+
+    ApiResponse.result(res, { user }, httpStatusCodes.OK);
+};
+
 //logout user
 const logoutUser = (req, res, next) => {
   res.cookie("accessToken", "", { maxAge: 0 });
   ApiResponse.result(res, { status: "User logged out successfully" }, httpStatusCodes.OK);
 };
+const changePassword = async (req, res, next) => {
+  const { oldpassword, newpassword, confirmpassword } = req.body;
+   if (!oldpassword || !newpassword || !confirmpassword){
+    throw new ApiError(
+      httpStatusCodes.BAD_REQUEST,
+      "All fields are required",
+      httpStatusCodes.BAD_REQUEST
+    );
+   }
+   if (newpassword!==confirmpassword){
+    throw new ApiError(
+      httpStatusCodes.BAD_REQUEST,
+      "New password and confirm password is not matched",
+      httpStatusCodes.BAD_REQUEST
+    );
+}
+   const user = await Users.findOne({ _id: req.user._userInfo });
+   if(user && (await bcrypt.compare(oldpassword, user.password))){
+    const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newpassword, salt);
+
+    await Users.updateOne(
+      { _id: req.user._userInfo },
+      { $set: {password:hashedPassword} }
+    ); 
+
+    ApiResponse.result(res, { message:"password changed successfully" }, httpStatusCodes.OK);
+       
+   }
+   else{
+    throw new ApiError(
+      httpStatusCodes.FORBIDDEN,
+      "Invalid old password",
+      httpStatusCodes.FORBIDDEN
+    );
+   }
+
+    
+};
+
+//logout user
 
 export {
   userRegisteration,
@@ -187,5 +239,7 @@ export {
   currentUser,
   logoutUser,
   deleteUser,
-  validateConfirmationToken
+  validateConfirmationToken,
+  updateUser,
+  changePassword
 };
