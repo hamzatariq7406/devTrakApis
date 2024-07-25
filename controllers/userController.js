@@ -2,7 +2,6 @@
 import bcrypt from "bcrypt";
 import nodemailer from 'nodemailer';
 import httpStatusCodes from "http-status-codes";
-
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
 
@@ -11,6 +10,8 @@ import Users from "../models/userModel.js";
 import { ApiError } from "../utils/ApiErrors.js";
 import { generateRandomCode } from "../utils/methods.js";
 import ApiResponse from '../utils/ApiResponse.js';
+
+
 
 //user registration
 const userRegisteration = async (req, res, next) => {
@@ -178,9 +179,16 @@ const currentUser = async (req, res, next) => {
 const updateUser = async (req, res, next) => {
   const { firstName, lastName, phone } = req.body;
 
+  let updateFields = {};
+
+  // Add fields to the update object if they are defined
+  if (firstName !== undefined) updateFields.firstName = firstName;
+  if (lastName !== undefined) updateFields.lastName = lastName;
+  if (phone !== undefined) updateFields.phone = phone;
+
     const user = await Users.updateOne(
-      { _id: req.params.id },
-      { $set: {firstName, lastName, phone} }
+      { _id: req.params.objectId },
+      { $set: updateFields }
     );
 
     ApiResponse.result(res, { user }, httpStatusCodes.OK);
@@ -192,28 +200,25 @@ const logoutUser = (req, res, next) => {
   ApiResponse.result(res, { status: "User logged out successfully" }, httpStatusCodes.OK);
 };
 const changePassword = async (req, res, next) => {
-  const { oldpassword, newpassword, confirmpassword } = req.body;
-   if (!oldpassword || !newpassword || !confirmpassword){
+  const { oldpassword, newpassword } = req.body;
+  const objectId = req.user._userInfo
+   if (!oldpassword || !newpassword ){
     throw new ApiError(
       httpStatusCodes.BAD_REQUEST,
       "All fields are required",
       httpStatusCodes.BAD_REQUEST
     );
    }
-   if (newpassword!==confirmpassword){
-    throw new ApiError(
-      httpStatusCodes.BAD_REQUEST,
-      "New password and confirm password is not matched",
-      httpStatusCodes.BAD_REQUEST
-    );
-}
-   const user = await Users.findOne({ _id: req.user._userInfo });
+
+   console.log('user info ', objectId)
+   
+   const user = await Users.findOne({ _id: objectId });
    if(user && (await bcrypt.compare(oldpassword, user.password))){
     const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(newpassword, salt);
 
     await Users.updateOne(
-      { _id: req.user._userInfo },
+      { _id: objectId },
       { $set: {password:hashedPassword} }
     ); 
 
@@ -230,8 +235,52 @@ const changePassword = async (req, res, next) => {
 
     
 };
+const forgetPassword = async (req, res, next) => {
+  const { email } = req.body;
+   if (!email){
+    throw new ApiError(
+      httpStatusCodes.BAD_REQUEST,
+      "Email is required",
+      httpStatusCodes.BAD_REQUEST
+    );
+   }
+   
+   const user = await Users.findOne({ email: email });
+   if(user ){
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.SIGNUP_EMAIL,
+        pass: process.env.SIGNUP_EMAIL_PASS,
+      },
+    });
 
-//logout user
+    const mailOptions = {
+      from: process.env.SIGNUP_EMAIL,
+      to: email,
+      subject: 'Reset Password',
+      html: `
+            <p>Hello,</p>
+            <link a="  " />
+        `
+    };
+
+    transporter.sendMail(mailOptions);
+    ApiResponse.result(res, { message:"Email sent successfully." }, httpStatusCodes.OK);
+       
+   }
+   else{
+    throw new ApiError(
+      httpStatusCodes.FORBIDDEN,
+      "Invalid Email",
+      httpStatusCodes.FORBIDDEN
+    );
+   }
+
+    
+};
+
+
 
 export {
   userRegisteration,
@@ -241,5 +290,6 @@ export {
   deleteUser,
   validateConfirmationToken,
   updateUser,
-  changePassword
+  changePassword,
+  forgetPassword
 };
