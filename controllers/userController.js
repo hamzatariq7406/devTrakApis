@@ -205,13 +205,11 @@ const changePassword = async (req, res, next) => {
    if (!oldpassword || !newpassword ){
     throw new ApiError(
       httpStatusCodes.BAD_REQUEST,
-      "All fields are required",
+      "Old Password or new password is not provided",
       httpStatusCodes.BAD_REQUEST
     );
    }
-
-   console.log('user info ', objectId)
-   
+      
    const user = await Users.findOne({ _id: objectId });
    if(user && (await bcrypt.compare(oldpassword, user.password))){
     const salt = await bcrypt.genSalt(10);
