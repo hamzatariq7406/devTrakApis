@@ -7,7 +7,8 @@ import {
     validateConfirmationToken,
     updateUser,
     changePassword,
-    forgetPassword
+    forgetPassword,
+    verifyPasswordResetToken
 } from "../controllers/userController.js";
 
 import validateToken from "../middleware/validateTokenHandler.js";
@@ -24,5 +25,6 @@ userRouter.put("/changePassword", validateToken, asyncHandler(changePassword));
 userRouter.post("/logout", asyncHandler(logoutUser));
 userRouter.post("/delete", validateToken, asyncHandler(deleteUser));
 userRouter.post("/forgetPassword", asyncHandler(forgetPassword));
+userRouter.post("/verifyResetToken", asyncHandler(verifyPasswordResetToken));
 
 export default userRouter;

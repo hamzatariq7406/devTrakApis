@@ -4,11 +4,10 @@ import nodemailer from 'nodemailer';
 import httpStatusCodes from "http-status-codes";
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
-
 //modals
 import Users from "../models/userModel.js";
 import { ApiError } from "../utils/ApiErrors.js";
-import { generateRandomCode } from "../utils/methods.js";
+import { generateRandomCode, generateRandomToken } from "../utils/methods.js";
 import ApiResponse from '../utils/ApiResponse.js';
 
 
@@ -201,7 +200,7 @@ const logoutUser = (req, res, next) => {
 };
 const changePassword = async (req, res, next) => {
   const { oldpassword, newpassword } = req.body;
-  const objectId = req.user._userInfo
+  const objectId = new Types.ObjectId(req.user._userInfo)
    if (!oldpassword || !newpassword ){
     throw new ApiError(
       httpStatusCodes.BAD_REQUEST,
@@ -209,7 +208,7 @@ const changePassword = async (req, res, next) => {
       httpStatusCodes.BAD_REQUEST
     );
    }
-      
+
    const user = await Users.findOne({ _id: objectId });
    if(user && (await bcrypt.compare(oldpassword, user.password))){
     const salt = await bcrypt.genSalt(10);
@@ -245,6 +244,10 @@ const forgetPassword = async (req, res, next) => {
    
    const user = await Users.findOne({ email: email });
    if(user ){
+
+    const randomToken = generateRandomToken(24);
+    await Users.updateOne({ email }, { $set: { token: randomToken } });
+
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -256,10 +259,16 @@ const forgetPassword = async (req, res, next) => {
     const mailOptions = {
       from: process.env.SIGNUP_EMAIL,
       to: email,
-      subject: 'Reset Password',
+      subject: 'Password Reset Request',
       html: `
+            <h2>Password Reset</h2>
             <p>Hello,</p>
-            <link a="  " />
+            <br />
+            <p>You recently requested a password reset for your account. Click the link below to reset your password:</p>
+            <p><a href=${process.env.FRONT_END_URL + '/reset-password/' + randomToken} target="_blank">Reset Password</a></p>
+            <p>If you did not request a password reset, please ignore this email.</p>
+            <br />
+            <p>Best regards,<br>Barkeep Team</p>
         `
     };
 
@@ -277,6 +286,44 @@ const forgetPassword = async (req, res, next) => {
 
     
 };
+const verifyPasswordResetToken = async (req, res) => {
+  const { password, token, phone } = req.body;
+
+  if (!token) {
+      throw new ApiError(
+          httpStatusCodes.UNPROCESSABLE_ENTITY,
+          "Token is required",
+          httpStatusCodes.UNPROCESSABLE_ENTITY
+      );
+  }
+  const user = await Users.findOne({ token: token });
+
+  if (!user) {
+      throw new ApiError(
+          httpStatusCodes.UNPROCESSABLE_ENTITY,
+          "Token is invalid",
+          httpStatusCodes.UNPROCESSABLE_ENTITY
+      );
+  }
+
+  let jwt;
+  let updatedUser;
+  bcrypt.hash(password, 10, async (_, hash) => {
+      if (hash) {
+          await Users.updateOne({ email: user.email }, { $set: { password: hash, token: null, phone: phone } });
+
+          if (!user?.password) {
+              jwt = generateJWTToken(user.email, user);
+              updatedUser = { title: user.title, email: user.email, phone, role: user.role, ownerEmail: user.ownerCompanyEmail };
+              ApiResponse.result(res, { token: jwt, user: updatedUser }, httpStatusCodes.OK);
+          } else {
+              ApiResponse.result(res, { status: 'updated' }, httpStatusCodes.OK);
+          }
+
+
+      }
+  })
+}
 
 
 
@@ -289,5 +336,6 @@ export {
   validateConfirmationToken,
   updateUser,
   changePassword,
-  forgetPassword
+  forgetPassword,
+  verifyPasswordResetToken
 };
