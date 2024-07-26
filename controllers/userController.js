@@ -185,12 +185,12 @@ const updateUser = async (req, res, next) => {
   if (lastName !== undefined) updateFields.lastName = lastName;
   if (phone !== undefined) updateFields.phone = phone;
 
-    const user = await Users.updateOne(
-      { _id: req.params.objectId },
-      { $set: updateFields }
-    );
+  await Users.updateOne(
+    { _id: new Types.ObjectId(req.user._userInfo) },
+    { $set: updateFields }
+  );
 
-    ApiResponse.result(res, { user }, httpStatusCodes.OK);
+  ApiResponse.result(res, { status: 'user updated successfully' }, httpStatusCodes.OK);
 };
 
 //logout user
@@ -198,55 +198,55 @@ const logoutUser = (req, res, next) => {
   res.cookie("accessToken", "", { maxAge: 0 });
   ApiResponse.result(res, { status: "User logged out successfully" }, httpStatusCodes.OK);
 };
+
 const changePassword = async (req, res, next) => {
   const { oldpassword, newpassword } = req.body;
+
   const objectId = new Types.ObjectId(req.user._userInfo)
-   if (!oldpassword || !newpassword ){
+  if (!oldpassword || !newpassword) {
     throw new ApiError(
       httpStatusCodes.BAD_REQUEST,
       "Old Password or new password is not provided",
       httpStatusCodes.BAD_REQUEST
     );
-   }
+  }
 
-   const user = await Users.findOne({ _id: objectId });
-   if(user && (await bcrypt.compare(oldpassword, user.password))){
+  const user = await Users.findOne({ _id: objectId });
+  if (user && (await bcrypt.compare(oldpassword, user.password))) {
     const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(newpassword, salt);
+    const hashedPassword = await bcrypt.hash(newpassword, salt);
 
     await Users.updateOne(
       { _id: objectId },
-      { $set: {password:hashedPassword} }
-    ); 
+      { $set: { password: hashedPassword } }
+    );
 
-    ApiResponse.result(res, { message:"password changed successfully" }, httpStatusCodes.OK);
-       
-   }
-   else{
+    ApiResponse.result(res, { message: "password changed successfully" }, httpStatusCodes.OK);
+  }
+  else {
     throw new ApiError(
       httpStatusCodes.FORBIDDEN,
       "Invalid old password",
       httpStatusCodes.FORBIDDEN
     );
-   }
+  }
 
-    
+
 };
 const forgetPassword = async (req, res, next) => {
   const { email } = req.body;
-   if (!email){
+  if (!email) {
     throw new ApiError(
       httpStatusCodes.BAD_REQUEST,
       "Email is required",
       httpStatusCodes.BAD_REQUEST
     );
-   }
-   
-   const user = await Users.findOne({ email: email });
-   if(user ){
+  }
 
+  const user = await Users.findOne({ email: email });
+  if (user) {
     const randomToken = generateRandomToken(24);
-    await Users.updateOne({ email }, { $set: { token: randomToken } });
+    await Users.updateOne({ email }, { $set: { resetToken: randomToken } });
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -268,60 +268,49 @@ const forgetPassword = async (req, res, next) => {
             <p><a href=${process.env.FRONT_END_URL + '/reset-password/' + randomToken} target="_blank">Reset Password</a></p>
             <p>If you did not request a password reset, please ignore this email.</p>
             <br />
-            <p>Best regards,<br>Barkeep Team</p>
+            <p>Best regards,<br>AutoTrak Team</p>
         `
     };
 
     transporter.sendMail(mailOptions);
-    ApiResponse.result(res, { message:"Email sent successfully." }, httpStatusCodes.OK);
-       
-   }
-   else{
+    ApiResponse.result(res, { message: "Email sent successfully." }, httpStatusCodes.OK);
+
+  }
+  else {
     throw new ApiError(
       httpStatusCodes.FORBIDDEN,
       "Invalid Email",
       httpStatusCodes.FORBIDDEN
     );
-   }
+  }
 
-    
+
 };
 const verifyPasswordResetToken = async (req, res) => {
-  const { password, token, phone } = req.body;
+  const { password, token } = req.body;
 
   if (!token) {
-      throw new ApiError(
-          httpStatusCodes.UNPROCESSABLE_ENTITY,
-          "Token is required",
-          httpStatusCodes.UNPROCESSABLE_ENTITY
-      );
+    throw new ApiError(
+      httpStatusCodes.UNPROCESSABLE_ENTITY,
+      "Token is required",
+      httpStatusCodes.UNPROCESSABLE_ENTITY
+    );
   }
-  const user = await Users.findOne({ token: token });
+  const user = await Users.findOne({ resetToken: token });
 
   if (!user) {
-      throw new ApiError(
-          httpStatusCodes.UNPROCESSABLE_ENTITY,
-          "Token is invalid",
-          httpStatusCodes.UNPROCESSABLE_ENTITY
-      );
+    throw new ApiError(
+      httpStatusCodes.UNPROCESSABLE_ENTITY,
+      "Token is invalid",
+      httpStatusCodes.UNPROCESSABLE_ENTITY
+    );
   }
 
-  let jwt;
-  let updatedUser;
   bcrypt.hash(password, 10, async (_, hash) => {
-      if (hash) {
-          await Users.updateOne({ email: user.email }, { $set: { password: hash, token: null, phone: phone } });
-
-          if (!user?.password) {
-              jwt = generateJWTToken(user.email, user);
-              updatedUser = { title: user.title, email: user.email, phone, role: user.role, ownerEmail: user.ownerCompanyEmail };
-              ApiResponse.result(res, { token: jwt, user: updatedUser }, httpStatusCodes.OK);
-          } else {
-              ApiResponse.result(res, { status: 'updated' }, httpStatusCodes.OK);
-          }
-
-
-      }
+    if (hash) {
+      await Users.updateOne({ email: user.email }, { $set: { password: hash, resetToken: null } });
+      ApiResponse.result(res, { status: 'Password reset successful' }, httpStatusCodes.OK);
+    }
   })
 }
 
