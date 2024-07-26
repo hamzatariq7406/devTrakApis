@@ -19,6 +19,9 @@ const userSchema = Schema(
     },
     token: {
       type: String
+    },
+    resetToken: {
+      type: String
     }
   },
   {
