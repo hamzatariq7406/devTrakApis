@@ -29,7 +29,7 @@ app.use(cookieParser());
 app.use("/api", userRouter);
 //app.use("/api/admin", adminRouter);
 
-app.get("/", (req, res) => {
+app.get("/api/testing", (req, res) => {
   res.send("API is running");
 });
 

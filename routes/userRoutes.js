@@ -27,7 +27,7 @@ userRouter.post(
   asyncHandler(validateConfirmationToken)
 );
 userRouter.get("/currentUser", validateToken, asyncHandler(currentUser));
-userRouter.put("/update/:objectId", validateToken, asyncHandler(updateUser));
+userRouter.put("/updateUser", validateToken, asyncHandler(updateUser));
 userRouter.put("/changePassword", validateToken, asyncHandler(changePassword));
 userRouter.post("/logout", asyncHandler(logoutUser));
 userRouter.post("/delete", validateToken, asyncHandler(deleteUser));
