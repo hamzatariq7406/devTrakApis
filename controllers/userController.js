@@ -7,10 +7,14 @@ import { Types } from "mongoose";
 //modals
 import Users from "../models/userModel.js";
 import { ApiError } from "../utils/ApiErrors.js";
+import oauth2Client from "../utils/oauth2client.js";
 import { generateRandomCode, generateRandomToken } from "../utils/methods.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { sendMail } from "../utils/sendmail.js";
 import { EMAIL } from "../utils/constant.js";
+import axios from "axios";
+import path from "path";
+import { uploadFile } from "../utils/S3.js";
 
 //user registration
 const userRegisteration = async (req, res, next) => {
@@ -308,6 +312,100 @@ const verifyPasswordResetToken = async (req, res) => {
   });
 };
 
+const googleAuth = async (req, res) => {
+  const { code } = req.body;
+
+  const googleRes = await oauth2Client.getToken(code);
+
+  oauth2Client.setCredentials(googleRes.tokens);
+
+  const userRes = await axios.get(
+    `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${googleRes.tokens.access_token}`
+  );
+
+  const user = await Users.find({ email: userRes?.data?.email });
+  if (user.length === 0) {
+    throw new ApiError(
+      httpStatusCodes.BAD_REQUEST,
+      "Invalid email ",
+      httpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  if (user) {
+    if (user[0] && user[0]?.token) {
+      throw new ApiError(
+        httpStatusCodes.UNAUTHORIZED,
+        "Email verification is pending",
+        httpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    const accessToken = jwt.sign(
+      {
+        user: {
+          _userInfo: user[0]._id,
+        },
+      },
+      process.env.JWT_KEY,
+      { expiresIn: "1d" }
+    );
+    res.cookie("accessToken", accessToken, {
+      HttpOnly: true,
+      //TODO: will turn it to true once ssl is configured
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000,
+      sameSite: "none",
+    });
+    ApiResponse.result(res, { status: "Login Successful" }, httpStatusCodes.OK);
+  } else {
+    throw new ApiError(
+      httpStatusCodes.BAD_REQUEST,
+      "Invalid User",
+      httpStatusCodes.BAD_REQUEST
+    );
+  }
+};
+const upload = async (req, res, next) => {
+  try {
+    const picFile = req.files;
+
+    if (!req.files) {
+      throw new ApiError(
+        httpStatusCodes.BAD_REQUEST,
+        "Please Select File ",
+        httpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".pdf"];
+    const fileName = Date.now() + picFile.pic.name;
+    const fileData = picFile.pic.data;
+
+    const fileExtension = path.extname(fileName).toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      throw new ApiError(
+        httpStatusCodes.BAD_REQUEST,
+        "File must be in .jpg ,.jpeg , .png , .pdf format ",
+        httpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const result = await uploadFile(
+      process.env.AWS_BUCKET_NAME,
+      fileData,
+      fileName
+    );
+    ApiResponse.result(
+      res,
+      { status: "File Upload Successfully" },
+      httpStatusCodes.OK
+    );
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 export {
   userRegisteration,
   loginUser,
@@ -319,4 +417,6 @@ export {
   changePassword,
   forgetPassword,
   verifyPasswordResetToken,
+  googleAuth,
+  upload,
 };
