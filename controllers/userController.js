@@ -1,21 +1,24 @@
 //User info Controllers
 import bcrypt from "bcrypt";
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 import httpStatusCodes from "http-status-codes";
 import jwt from "jsonwebtoken";
 import { Types } from "mongoose";
 //modals
 import Users from "../models/userModel.js";
 import { ApiError } from "../utils/ApiErrors.js";
+import oauth2Client from "../utils/oauth2client.js";
 import { generateRandomCode, generateRandomToken } from "../utils/methods.js";
-import ApiResponse from '../utils/ApiResponse.js';
-
-
+import ApiResponse from "../utils/ApiResponse.js";
+import { sendMail } from "../utils/sendmail.js";
+import { EMAIL } from "../utils/constant.js";
+import axios from "axios";
+import path from "path";
+import { uploadFile } from "../utils/S3.js";
 
 //user registration
 const userRegisteration = async (req, res, next) => {
   const { firstName, lastName, email, phone, password } = req.body;
-
 
   const isUserExist = await Users.findOne({ email: email });
   if (isUserExist) {
@@ -29,45 +32,27 @@ const userRegisteration = async (req, res, next) => {
   const hashedPassword = await bcrypt.hash(password, salt);
   const confirmationToken = generateRandomCode();
 
-
   const userData = await Users.create({
     firstName,
     lastName,
     email,
     phone,
     password: hashedPassword,
-    token: confirmationToken
+    token: confirmationToken,
   });
 
   if (userData) {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.SIGNUP_EMAIL,
-        pass: process.env.SIGNUP_EMAIL_PASS,
-      },
-    });
-
-    const mailOptions = {
-      from: process.env.SIGNUP_EMAIL,
-      to: email,
-      subject: 'DevTrak Account Creation Request',
-      html: `
-            <p>Hello,</p>
-            <br />
-            <p>Thank you for signing up with us!</p>
-            <p>To complete your registration, please use the following confirmation code:</p>
-            <br />
-            <h2 style="background-color: #f0f0f0; padding: 10px; text-align: center;">${confirmationToken}</h2>
-            <br />
-            <p>If you didn't sign up for our service, please ignore this email.</p>
-            <br />
-            <p>Best regards,<br>DevTrak Team</p>
-        `
-    };
-
-    transporter.sendMail(mailOptions);
-    ApiResponse.result(res, { status: "User Regsitered successfully" }, httpStatusCodes.OK);
+    const a = await sendMail(
+      email,
+      EMAIL.USER_REGISTRATION_SUBJECT,
+      EMAIL.USER_REGISTRATION_BODY(confirmationToken)
+    );
+    console.log(a);
+    ApiResponse.result(
+      res,
+      { status: "User Regsitered successfully" },
+      httpStatusCodes.OK
+    );
   } else {
     throw new ApiError(
       httpStatusCodes.BAD_REQUEST,
@@ -100,8 +85,12 @@ const validateConfirmationToken = async (req, res) => {
 
   await Users.updateOne({ email }, { $set: { token: null } });
 
-  ApiResponse.result(res, { status: "Email verification successful" }, httpStatusCodes.OK);
-}
+  ApiResponse.result(
+    res,
+    { status: "Email verification successful" },
+    httpStatusCodes.OK
+  );
+};
 
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
@@ -164,7 +153,11 @@ const deleteUser = async (req, res, next) => {
   const o_id = new Types.ObjectId(id);
 
   await Users.deleteOne({ _id: o_id });
-  ApiResponse.result(res, { status: "User deleted successfully" }, httpStatusCodes.OK);
+  ApiResponse.result(
+    res,
+    { status: "User deleted successfully" },
+    httpStatusCodes.OK
+  );
 };
 
 //current user
@@ -185,6 +178,7 @@ const updateUser = async (req, res, next) => {
   if (lastName !== undefined) updateFields.lastName = lastName;
   if (phone !== undefined) updateFields.phone = phone;
 
+
   await Users.updateOne(
     { _id: new Types.ObjectId(req.user._userInfo) },
     { $set: updateFields }
@@ -196,11 +190,16 @@ const updateUser = async (req, res, next) => {
 //logout user
 const logoutUser = (req, res, next) => {
   res.cookie("accessToken", "", { maxAge: 0 });
-  ApiResponse.result(res, { status: "User logged out successfully" }, httpStatusCodes.OK);
+  ApiResponse.result(
+    res,
+    { status: "User logged out successfully" },
+    httpStatusCodes.OK
+  );
 };
 
 const changePassword = async (req, res, next) => {
   const { oldpassword, newpassword } = req.body;
+
 
   const objectId = new Types.ObjectId(req.user._userInfo)
   if (!oldpassword || !newpassword) {
@@ -221,16 +220,19 @@ const changePassword = async (req, res, next) => {
       { $set: { password: hashedPassword } }
     );
 
-    ApiResponse.result(res, { message: "password changed successfully" }, httpStatusCodes.OK);
-  }
-  else {
+    ApiResponse.result(
+      res,
+      { message: "password changed successfully" },
+      httpStatusCodes.OK
+    );
+  } else {
+
     throw new ApiError(
       httpStatusCodes.FORBIDDEN,
       "Invalid old password",
       httpStatusCodes.FORBIDDEN
     );
   }
-
 
 };
 const forgetPassword = async (req, res, next) => {
@@ -248,42 +250,25 @@ const forgetPassword = async (req, res, next) => {
     const randomToken = generateRandomToken(24);
     await Users.updateOne({ email }, { $set: { resetToken: randomToken } });
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.SIGNUP_EMAIL,
-        pass: process.env.SIGNUP_EMAIL_PASS,
-      },
-    });
 
-    const mailOptions = {
-      from: process.env.SIGNUP_EMAIL,
-      to: email,
-      subject: 'Password Reset Request',
-      html: `
-            <h2>Password Reset</h2>
-            <p>Hello,</p>
-            <br />
-            <p>You recently requested a password reset for your account. Click the link below to reset your password:</p>
-            <p><a href=${process.env.FRONT_END_URL + '/reset-password/' + randomToken} target="_blank">Reset Password</a></p>
-            <p>If you did not request a password reset, please ignore this email.</p>
-            <br />
-            <p>Best regards,<br>AutoTrak Team</p>
-        `
-    };
+    sendMail(
+      email,
+      EMAIL.FORGOT_PASSWORD_SUBJECT,
+      EMAIL.FORGOT_PASSWORD_BODY(randomToken)
+    );
+    ApiResponse.result(
+      res,
+      { message: "Email sent successfully." },
+      httpStatusCodes.OK
+    );
+  } else {
 
-    transporter.sendMail(mailOptions);
-    ApiResponse.result(res, { message: "Email sent successfully." }, httpStatusCodes.OK);
-
-  }
-  else {
     throw new ApiError(
       httpStatusCodes.FORBIDDEN,
       "Invalid Email",
       httpStatusCodes.FORBIDDEN
     );
   }
-
 
 };
 const verifyPasswordResetToken = async (req, res) => {
@@ -308,13 +293,105 @@ const verifyPasswordResetToken = async (req, res) => {
 
   bcrypt.hash(password, 10, async (_, hash) => {
     if (hash) {
-      await Users.updateOne({ email: user.email }, { $set: { password: hash, resetToken: null } });
+ await Users.updateOne({ email: user.email }, { $set: { password: hash, resetToken: null } });
       ApiResponse.result(res, { status: 'Password reset successful' }, httpStatusCodes.OK);
     }
   })
 }
 
+const googleAuth = async (req, res) => {
+  const { code } = req.body;
 
+  const googleRes = await oauth2Client.getToken(code);
+
+  oauth2Client.setCredentials(googleRes.tokens);
+
+  const userRes = await axios.get(
+    `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${googleRes.tokens.access_token}`
+  );
+
+  const user = await Users.find({ email: userRes?.data?.email });
+  if (user.length === 0) {
+    throw new ApiError(
+      httpStatusCodes.BAD_REQUEST,
+      "Invalid email ",
+      httpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  if (user) {
+    if (user[0] && user[0]?.token) {
+      throw new ApiError(
+        httpStatusCodes.UNAUTHORIZED,
+        "Email verification is pending",
+        httpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    const accessToken = jwt.sign(
+      {
+        user: {
+          _userInfo: user[0]._id,
+        },
+      },
+      process.env.JWT_KEY,
+      { expiresIn: "1d" }
+    );
+    res.cookie("accessToken", accessToken, {
+      HttpOnly: true,
+      //TODO: will turn it to true once ssl is configured
+      secure: false,
+      maxAge: 24 * 60 * 60 * 1000,
+      sameSite: "none",
+    });
+    ApiResponse.result(res, { status: "Login Successful" }, httpStatusCodes.OK);
+  } else {
+    throw new ApiError(
+      httpStatusCodes.BAD_REQUEST,
+      "Invalid User",
+      httpStatusCodes.BAD_REQUEST
+    );
+  }
+};
+const upload = async (req, res, next) => {
+  try {
+    const picFile = req.files;
+
+    if (!req.files) {
+      throw new ApiError(
+        httpStatusCodes.BAD_REQUEST,
+        "Please Select File ",
+        httpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".pdf"];
+    const fileName = Date.now() + picFile.pic.name;
+    const fileData = picFile.pic.data;
+
+    const fileExtension = path.extname(fileName).toLowerCase();
+    if (!allowedExtensions.includes(fileExtension)) {
+      throw new ApiError(
+        httpStatusCodes.BAD_REQUEST,
+        "File must be in .jpg ,.jpeg , .png , .pdf format ",
+        httpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const result = await uploadFile(
+      process.env.AWS_BUCKET_NAME,
+      fileData,
+      fileName
+    );
+    ApiResponse.result(
+      res,
+      { status: "File Upload Successfully" },
+      httpStatusCodes.OK
+    );
+  } catch (error) {
+    console.log(error);
+  }
+};
 
 export {
   userRegisteration,
@@ -326,5 +403,7 @@ export {
   updateUser,
   changePassword,
   forgetPassword,
-  verifyPasswordResetToken
+  verifyPasswordResetToken,
+  googleAuth,
+  upload,
 };
