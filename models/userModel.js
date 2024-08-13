@@ -18,11 +18,11 @@ const userSchema = Schema(
       required: [true, "Please add the user password"],
     },
     token: {
-      type: String
+      type: String,
     },
     resetToken: {
-      type: String
-    }
+      type: String,
+    },
   },
   {
     timestamps: true,
