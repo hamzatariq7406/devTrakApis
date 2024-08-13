@@ -10,7 +10,8 @@ import cors from "cors";
 import userRouter from "./routes/userRoutes.js";
 import fileUpload from "express-fileupload";
 import bodyParser from "body-parser";
-
+import CarRoutes from "./routes/CarRoutes.js";
+import FolderRoutes from "./routes/FolderRoutes.js";
 const PORT = process.env.PORT || 9001;
 
 //database connection
@@ -27,6 +28,8 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api", userRouter);
+app.use("/api", CarRoutes);
+app.use("/api", FolderRoutes);
 //app.use("/api/admin", adminRouter);
 
 app.get("/api/testing", (req, res) => {
